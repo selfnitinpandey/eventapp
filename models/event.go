@@ -3,6 +3,8 @@ package models
 import (
 	"context"
 	"eventapp/config"
+	"fmt"
+	"log"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -46,6 +48,50 @@ func InsertEvent(client *mongo.Client, ctx context.Context, event Event) error {
 	return err
 }
 
-func DeleteEvent(client *mongo.Client, ctx context.Context) {
+func UpdateEvent(client *mongo.Client, ctx context.Context, eventID string, updatedEvent Event) error {
+	appConfig := config.LoadConfig()
+	objectID, err := primitive.ObjectIDFromHex(eventID)
+	if err != nil {
+		return err
+	}
+	collection := client.Database(appConfig.DATABASENAME).Collection("events")
+	filter := bson.M{"_id": objectID}
+	update := bson.M{
+		"$set": bson.M{
+			"name":       updatedEvent.Name,
+			"location":   updatedEvent.Location,
+			"created_at": updatedEvent.Created_At,
+		},
+	}
+
+	result, err := collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to update event: %v", err)
+	}
+
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("no event found with the given ID")
+	}
+
+	return nil
+}
+
+func DeleteEvent(client *mongo.Client, ctx context.Context, delId string) (error, int64) {
+	appConfig := config.LoadConfig()
+	objectID, err := primitive.ObjectIDFromHex(delId)
+	if err != nil {
+		log.Fatalf("Invalid ObjectID format: %v", err)
+		return err, 0
+	}
+
+	collection := client.Database(appConfig.DATABASENAME).Collection("events")
+
+	deleteResult, err := collection.DeleteOne(ctx, bson.M{"_id": objectID})
+	if err != nil {
+		log.Fatalf("Failed to delete event: %v", err)
+		return err, 0
+	}
+
+	return nil, deleteResult.DeletedCount
 
 }
